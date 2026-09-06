@@ -1,1 +1,9 @@
+# Compiled binaries
 main
+*.out
+
+# Build directory
+build/
+
+# macOS
+.DS_Store
