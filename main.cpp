@@ -201,6 +201,48 @@ public:
         orderMap.erase(it);
     }
 
+    void modifyOrder(int orderId, int newQuantity, double newPrice){
+
+        auto it = orderMap.find(orderId);
+
+        if(it == orderMap.end())
+        {
+            return;
+        }
+
+        OrderLocation location = it->second;
+
+        if(newQuantity < 0)
+        {
+            std::cout << "Error: Quantity cannot be negative. Order not modified." << std::endl;
+            return;
+        }
+
+        if(newQuantity == 0)
+        {
+            cancelOrder(orderId);
+            return;
+        }
+        
+        if (newPrice <= 0) {
+            std::cout << "Error: Price cannot be zero or negative. Order not modified." << std::endl;
+            return;
+        }
+
+        if(newPrice != location.price )
+        {
+            cancelOrder(orderId);
+
+            Order modifiedOrder = {orderId, location.isBuy, newPrice, newQuantity};
+
+            addOrder(modifiedOrder);
+        }
+        else
+        {
+            location.it->quantity = newQuantity;
+        }
+    }
+
     void printBook() {
 
         std::cout << "\n========== ORDER BOOK ==========\n";
@@ -250,47 +292,398 @@ public:
 
 int main() {
 
-    // BUY FULLY FILLS SELL
-    Order order1 = {1, false, 100.00, 5};
-    Order order2 = {2, true, 105.00, 5};
+    // =========================================================
+    // 1. BUY FULLY FILLS SELL
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 1: BUY FULLY FILLS SELL =====\n";
 
-    // BUY PARTIALLY FILLS SELL
-    Order order3 = {3, false, 105.00, 20};
-    Order order4 = {4, true, 108.00, 15};
+        OrderBook ob;
 
-    // BUY CONSUMES MULTIPLE SELLS
-    Order order5 = {5, false, 98.00, 5};
-    Order order6 = {6, true, 106.00, 100};
+        Order sell = {1, false, 100.0, 5};
+        Order buy  = {2, true, 105.0, 5};
 
-    // SELL FULLY FILLS BUY
-    Order order7 = {7, true, 100.00, 12};
-    Order order8 = {8, false, 99.00, 12};
+        ob.addOrder(sell);
+        ob.addOrder(buy);
 
-    // SELL CONSUMES MULTIPLE BUYS
-    Order order9  = {9, true, 101.00, 10};
-    Order order10 = {10, true, 100.00, 5};
-    Order order11 = {11, false, 99.00, 15};
+        ob.printBook();
+    }
 
-    OrderBook ob;
 
-    ob.addOrder(order1);
-    ob.addOrder(order2);
+    // =========================================================
+    // 2. BUY PARTIALLY FILLS SELL
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 2: BUY PARTIALLY FILLS SELL =====\n";
 
-    ob.addOrder(order3);
-    ob.addOrder(order4);
+        OrderBook ob;
 
-    ob.addOrder(order5);
-    ob.addOrder(order6);
+        Order sell = {1, false, 100.0, 10};
+        Order buy  = {2, true, 105.0, 6};
 
-    ob.addOrder(order7);
-    ob.cancelOrder(6);
-    ob.addOrder(order8);
+        ob.addOrder(sell);
+        ob.addOrder(buy);
 
-    ob.addOrder(order9);
-    ob.addOrder(order10);
-    ob.addOrder(order11);
+        ob.printBook();
+    }
 
-    ob.printBook();
+
+    // =========================================================
+    // 3. SELL PARTIALLY FILLS BUY
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 3: SELL PARTIALLY FILLS BUY =====\n";
+
+        OrderBook ob;
+
+        Order buy  = {1, true, 105.0, 10};
+        Order sell = {2, false, 100.0, 6};
+
+        ob.addOrder(buy);
+        ob.addOrder(sell);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 4. BUY CONSUMES MULTIPLE SELL PRICE LEVELS
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 4: BUY CONSUMES MULTIPLE SELLS =====\n";
+
+        OrderBook ob;
+
+        Order sell1 = {1, false, 98.0, 5};
+        Order sell2 = {2, false, 100.0, 3};
+        Order sell3 = {3, false, 103.0, 7};
+
+        Order buy = {4, true, 105.0, 10};
+
+        ob.addOrder(sell1);
+        ob.addOrder(sell2);
+        ob.addOrder(sell3);
+
+        ob.addOrder(buy);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 5. SELL CONSUMES MULTIPLE BUY PRICE LEVELS
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 5: SELL CONSUMES MULTIPLE BUYS =====\n";
+
+        OrderBook ob;
+
+        Order buy1 = {1, true, 105.0, 5};
+        Order buy2 = {2, true, 103.0, 3};
+        Order buy3 = {3, true, 100.0, 7};
+
+        Order sell = {4, false, 98.0, 10};
+
+        ob.addOrder(buy1);
+        ob.addOrder(buy2);
+        ob.addOrder(buy3);
+
+        ob.addOrder(sell);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 6. NON-CROSSING BUY RESTS IN BOOK
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 6: NON-CROSSING BUY =====\n";
+
+        OrderBook ob;
+
+        Order sell = {1, false, 105.0, 5};
+        Order buy  = {2, true, 100.0, 10};
+
+        ob.addOrder(sell);
+        ob.addOrder(buy);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 7. NON-CROSSING SELL RESTS IN BOOK
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 7: NON-CROSSING SELL =====\n";
+
+        OrderBook ob;
+
+        Order buy  = {1, true, 100.0, 5};
+        Order sell = {2, false, 105.0, 10};
+
+        ob.addOrder(buy);
+        ob.addOrder(sell);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 8. EXACT PRICE MATCH
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 8: EXACT PRICE MATCH =====\n";
+
+        OrderBook ob;
+
+        Order sell = {1, false, 100.0, 5};
+        Order buy  = {2, true, 100.0, 5};
+
+        ob.addOrder(sell);
+        ob.addOrder(buy);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 9. FIFO AT SAME SELL PRICE
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 9: FIFO SELL ORDERS =====\n";
+
+        OrderBook ob;
+
+        Order sell1 = {1, false, 100.0, 5};
+        Order sell2 = {2, false, 100.0, 7};
+        Order sell3 = {3, false, 100.0, 4};
+
+        Order buy = {4, true, 105.0, 8};
+
+        ob.addOrder(sell1);
+        ob.addOrder(sell2);
+        ob.addOrder(sell3);
+
+        ob.addOrder(buy);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 10. FIFO AT SAME BUY PRICE
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 10: FIFO BUY ORDERS =====\n";
+
+        OrderBook ob;
+
+        Order buy1 = {1, true, 100.0, 5};
+        Order buy2 = {2, true, 100.0, 7};
+        Order buy3 = {3, true, 100.0, 4};
+
+        Order sell = {4, false, 95.0, 8};
+
+        ob.addOrder(buy1);
+        ob.addOrder(buy2);
+        ob.addOrder(buy3);
+
+        ob.addOrder(sell);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 11. CANCEL MIDDLE ORDER
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 11: CANCEL MIDDLE ORDER =====\n";
+
+        OrderBook ob;
+
+        Order buy1 = {1, true, 100.0, 5};
+        Order buy2 = {2, true, 100.0, 5};
+        Order buy3 = {3, true, 100.0, 5};
+
+        ob.addOrder(buy1);
+        ob.addOrder(buy2);
+        ob.addOrder(buy3);
+
+        ob.cancelOrder(2);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 12. CANCEL ONLY ORDER AT A PRICE
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 12: CANCEL ONLY ORDER =====\n";
+
+        OrderBook ob;
+
+        Order buy = {1, true, 100.0, 5};
+
+        ob.addOrder(buy);
+        ob.cancelOrder(1);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 13. CANCEL NON-EXISTENT ORDER
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 13: CANCEL NON-EXISTENT ORDER =====\n";
+
+        OrderBook ob;
+
+        ob.cancelOrder(999);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 14. QUANTITY-ONLY MODIFICATION
+    //     Should preserve FIFO position
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 14: QUANTITY MODIFICATION =====\n";
+
+        OrderBook ob;
+
+        Order buy1 = {1, true, 100.0, 10};
+        Order buy2 = {2, true, 100.0, 10};
+        Order buy3 = {3, true, 100.0, 10};
+
+        ob.addOrder(buy1);
+        ob.addOrder(buy2);
+        ob.addOrder(buy3);
+
+        ob.modifyOrder(2, 5, 100.0);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 15. PRICE MODIFICATION
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 15: PRICE MODIFICATION =====\n";
+
+        OrderBook ob;
+
+        Order buy = {1, true, 100.0, 10};
+
+        ob.addOrder(buy);
+
+        ob.modifyOrder(1, 10, 105.0);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 16. PRICE MODIFICATION GETS NEW FIFO POSITION
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 16: PRICE MODIFICATION + FIFO =====\n";
+
+        OrderBook ob;
+
+        Order buy1 = {1, true, 100.0, 5};
+        Order buy2 = {2, true, 101.0, 5};
+
+        ob.addOrder(buy1);
+        ob.addOrder(buy2);
+
+        // Order 1 moves from 100 -> 101
+        ob.modifyOrder(1, 5, 101.0);
+
+        // At 101, Order 2 should be ahead of Order 1
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 17. PRICE MODIFICATION IMMEDIATELY MATCHES
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 17: MODIFICATION TRIGGERS MATCH =====\n";
+
+        OrderBook ob;
+
+        Order sell = {1, false, 102.0, 5};
+        Order buy  = {2, true, 100.0, 5};
+
+        ob.addOrder(sell);
+        ob.addOrder(buy);
+
+        // BUY changes from 100 -> 105 and should now match
+        ob.modifyOrder(2, 5, 105.0);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 18. MODIFY QUANTITY TO ZERO
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 18: MODIFY QUANTITY TO ZERO =====\n";
+
+        OrderBook ob;
+
+        Order buy = {1, true, 100.0, 5};
+
+        ob.addOrder(buy);
+
+        ob.modifyOrder(1, 0, 100.0);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 19. MODIFY NON-EXISTENT ORDER
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 19: MODIFY NON-EXISTENT ORDER =====\n";
+
+        OrderBook ob;
+
+        ob.modifyOrder(999, 10, 100.0);
+
+        ob.printBook();
+    }
+
+
+    // =========================================================
+    // 20. MODIFY PRICE + PARTIAL MATCH
+    // =========================================================
+    {
+        std::cout << "\n===== TEST 20: MODIFICATION + PARTIAL MATCH =====\n";
+
+        OrderBook ob;
+
+        Order sell = {1, false, 102.0, 10};
+        Order buy  = {2, true, 100.0, 5};
+
+        ob.addOrder(sell);
+        ob.addOrder(buy);
+
+        // Modified BUY becomes marketable
+        ob.modifyOrder(2, 7, 105.0);
+
+        ob.printBook();
+    }
 
     return 0;
 }
