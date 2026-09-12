@@ -1,5 +1,6 @@
 # Compiled binaries
 main
+tests
 *.out
 
 # Build directory
