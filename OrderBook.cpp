@@ -7,7 +7,9 @@ void OrderBook::addOrder(Order order)
 {
     if (order.isBuy)
     {
-        matchBuyOrder(order);
+        auto trades = matchBuyOrder(order);
+
+        tradeHistory.insert(tradeHistory.end(), trades.begin(), trades.end());
 
         if (order.quantity > 0)
         {
@@ -20,7 +22,9 @@ void OrderBook::addOrder(Order order)
     }
     else
     {
-        matchSellOrder(order);
+        auto trades = matchSellOrder(order);
+
+        tradeHistory.insert(tradeHistory.end(), trades.begin(), trades.end());
 
         if (order.quantity > 0)
         {
@@ -33,9 +37,39 @@ void OrderBook::addOrder(Order order)
     }
 }
 
-
-void OrderBook::matchBuyOrder(Order& order)
+bool OrderBook::hasOrder(int orderId) const
 {
+    return orderMap.find(orderId) != orderMap.end();
+}
+
+bool OrderBook::hasPriceLevel(bool isBuy, double price) const
+{
+    if (isBuy)
+    {
+        return bids.find(price) != bids.end();
+    }
+    else
+    {
+        return asks.find(price) != asks.end();
+    }
+}
+
+int OrderBook::getOrderQuantity(int orderId) const
+{
+    auto it = orderMap.find(orderId);
+
+    if (it == orderMap.end())
+    {
+        return -1;
+    }
+
+    return it->second.it->quantity;
+}
+
+std::vector<Trade> OrderBook::matchBuyOrder(Order& order)
+{
+    std::vector<Trade> trades;
+
     while (!asks.empty() && order.quantity > 0)
     {
         auto mapIt = asks.begin();
@@ -57,15 +91,7 @@ void OrderBook::matchBuyOrder(Order& order)
         order.quantity -= tradeQuantity;
         restingOrder.quantity -= tradeQuantity;
 
-        std::cout << "Trade executed: Buy Order ID "
-                  << order.id
-                  << " matched with Sell Order ID "
-                  << restingOrder.id
-                  << " for quantity "
-                  << tradeQuantity
-                  << " at price "
-                  << bestAsk
-                  << '\n';
+        trades.push_back({order.id, restingOrder.id, bestAsk, tradeQuantity});
 
         if (restingOrder.quantity == 0)
         {
@@ -78,11 +104,14 @@ void OrderBook::matchBuyOrder(Order& order)
             asks.erase(mapIt);
         }
     }
+    return trades;
 }
 
 
-void OrderBook::matchSellOrder(Order& order)
+std::vector<Trade> OrderBook::matchSellOrder(Order& order)
 {
+    std::vector<Trade> trades;
+
     while (!bids.empty() && order.quantity > 0)
     {
         auto mapIt = bids.begin();
@@ -104,15 +133,8 @@ void OrderBook::matchSellOrder(Order& order)
         order.quantity -= tradeQuantity;
         restingOrder.quantity -= tradeQuantity;
 
-        std::cout << "Trade executed: Sell Order ID "
-                  << order.id
-                  << " matched with Buy Order ID "
-                  << restingOrder.id
-                  << " for quantity "
-                  << tradeQuantity
-                  << " at price "
-                  << bestBid
-                  << '\n';
+        trades.push_back({restingOrder.id, order.id, bestBid, tradeQuantity});
+
 
         if (restingOrder.quantity == 0)
         {
@@ -125,6 +147,7 @@ void OrderBook::matchSellOrder(Order& order)
             bids.erase(mapIt);
         }
     }
+    return trades;
 }
 
 
