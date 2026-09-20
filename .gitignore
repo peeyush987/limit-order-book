@@ -5,6 +5,7 @@ tests
 
 # Build directory
 build/
+build-release/
 
 # macOS
 .DS_Store

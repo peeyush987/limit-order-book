@@ -17,5 +17,10 @@ add_executable(tests
     tests.cpp
 )
 
+add_executable(benchmark
+    benchmark.cpp
+)
+
+target_link_libraries(benchmark PRIVATE order_book)
 target_link_libraries(main PRIVATE order_book)
 target_link_libraries(tests PRIVATE order_book)
