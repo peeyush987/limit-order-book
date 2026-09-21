@@ -75,7 +75,7 @@ std::vector<Trade> OrderBook::matchBuyOrder(Order& order)
         auto mapIt = asks.begin();
 
         double bestAsk = mapIt->first;
-        std::list<Order>& restingOrders = mapIt->second;
+        auto& restingOrders = mapIt->second;
 
         if (order.price < bestAsk)
         {
@@ -117,7 +117,7 @@ std::vector<Trade> OrderBook::matchSellOrder(Order& order)
         auto mapIt = bids.begin();
 
         double bestBid = mapIt->first;
-        std::list<Order>& restingOrders = mapIt->second;
+        auto& restingOrders = mapIt->second;
 
         if (order.price > bestBid)
         {

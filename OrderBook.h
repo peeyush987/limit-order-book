@@ -1,29 +1,33 @@
 #ifndef ORDER_BOOK_H
 #define ORDER_BOOK_H
 
+#include "PoolAllocator.h"
 #include "Order.h"
 #include "Trade.h"
-#include <vector>
 
+#include <functional>
 #include <list>
 #include <map>
 #include <unordered_map>
+#include <vector>
+
+using OrderList = std::list<Order, PoolAllocator<Order>>;
 
 class OrderBook {
 private:
     struct OrderLocation {
         bool isBuy;
         double price;
-        std::list<Order>::iterator it;
+        OrderList::iterator it;
     };
 
     std::vector<Trade> tradeHistory; // Global trade history
 
     // Highest bid first
-    std::map<double, std::list<Order>, std::greater<double>> bids;
+    std::map<double, OrderList, std::greater<double>> bids;
 
     // Lowest ask first
-    std::map<double, std::list<Order>> asks;
+    std::map<double, OrderList> asks;
 
     // Order ID -> location of actual order
     std::unordered_map<int, OrderLocation> orderMap;

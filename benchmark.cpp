@@ -1,6 +1,5 @@
 
 #include "OrderBook.h"
-
 #include <algorithm>
 #include <chrono>
 #include <iostream>
@@ -86,6 +85,9 @@ int main()
                   << " orders/s\n";
     }
 
+    std::cout << PoolStats::freshAllocs << " fresh allocations, "
+              << PoolStats::recycled << " recycled allocations\n";
+
     // Total elapsed time across all measured runs.
     double totalTime =
         std::accumulate(timings.begin(), timings.end(), 0.0);
@@ -93,6 +95,8 @@ int main()
     // Mean.
     double mean = totalTime / MEASURED_RUNS;
 
+    // Sort a copy so we can calculate median without
+    // changing the original timing order.
     std::vector<double> sortedTimings = timings;
     std::sort(sortedTimings.begin(), sortedTimings.end());
 
@@ -137,3 +141,5 @@ int main()
 
     return 0;
 }
+
+

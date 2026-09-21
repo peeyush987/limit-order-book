@@ -9,3 +9,4 @@ build-release/
 
 # macOS
 .DS_Store
+.vscode/
