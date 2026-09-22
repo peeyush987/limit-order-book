@@ -22,12 +22,12 @@ public:
     T* allocate(std::size_t n) {
         if (n != 1) return static_cast<T*>(::operator new(n * sizeof(T)));
         if (!freeList_.empty()) {
-            PoolStats::recycled++;
+            // PoolStats::recycled++;
             T* p = freeList_.back();
             freeList_.pop_back();
             return p;
         }
-        PoolStats::freshAllocs++;
+        // PoolStats::freshAllocs++;
         return static_cast<T*>(::operator new(sizeof(T)));
     }
 

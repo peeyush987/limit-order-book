@@ -1,391 +1,524 @@
-# Limit Order Book & Matching Engine
+Limit Order Book & Matching Engine
 
 A C++17 implementation of a single-threaded limit order book with price-time priority matching, order cancellation, modification, trade history, automated tests, repeatable benchmarking, profiling, and measurement-driven performance optimization.
 
-## Overview
+Overview
 
 This project models the core order-matching logic of an electronic trading system. It maintains buy and sell orders, matches incoming orders against the best available prices, and preserves FIFO priority among orders at the same price level.
 
-The project is being developed incrementally, with correctness and understanding of the underlying data structures established before introducing more advanced performance, concurrency, and networking techniques.
+The project is being developed incrementally: correctness and data-structure understanding come first, followed by profiling, targeted optimization, and eventually concurrency and networking.
 
-The current focus is on building a defensible single-threaded matching engine and using profiling and benchmarking to guide optimization decisions rather than assuming a particular optimization will improve performance.
+The performance work is intentionally measurement-driven. Changes are made only after establishing a benchmark and identifying a concrete runtime cost to investigate.
 
-## Features
+Features
 
-* **Price-time priority:** Best price first, then FIFO within each price level.
-* **Order matching:** Supports full and partial fills.
-* **Order cancellation:** Removes active orders by ID.
-* **Order modification:** Supports quantity changes and price changes.
-* **Order lookup:** Uses an ID index to locate active orders without scanning the book.
-* **Trade history:** Records executed trades with buyer ID, seller ID, execution price, and quantity.
-* **Automated tests:** Covers matching and order-management behavior.
-* **Benchmarking:** Uses a fixed-seed synthetic workload for repeatable measurements.
-* **Profiling:** Uses macOS Instruments / Time Profiler to identify actual runtime hotspots.
-* **Memory optimization experiment:** Uses a recycling allocator for `std::list` nodes to reduce repeated heap allocation and deallocation.
+Price-time priority: Best price first, then FIFO within each price level.
 
-## Architecture
+Order matching: Supports full and partial fills.
 
-### Data structures
+Order cancellation: Removes active orders by ID.
 
-| Component                                | Purpose                                    |
-| ---------------------------------------- | ------------------------------------------ |
-| `std::map` for bids                      | Maintains price levels in descending order |
-| `std::map` for asks                      | Maintains price levels in ascending order  |
-| `std::list<Order, PoolAllocator<Order>>` | Stores FIFO orders within each price level |
-| `std::unordered_map`                     | Maps active order IDs to their locations   |
-| `std::vector<Trade>`                     | Stores executed trades                     |
+Order modification: Supports quantity changes and price changes.
 
-The order ID index stores the order's side, price, and list iterator. This allows an active order to be located without scanning every price level.
+Order lookup: Uses an ID index to locate active orders without scanning the book.
 
-`std::list` was chosen over `std::queue` because cancellation may target an order anywhere within a price level. Given a valid iterator, removing an element from the list is O(1).
+Trade history: Records executed trades with buyer ID, seller ID, execution price, and quantity.
 
-The list's node-based storage has a memory-allocation tradeoff: nodes are individually allocated rather than stored contiguously. Profiling the original implementation showed that this allocation/deallocation behavior was a measurable part of the total runtime.
+Automated tests: Covers matching and order-management behavior.
 
-### Matching rules
+Benchmarking: Uses a fixed-seed synthetic workload for repeatable measurements.
 
-1. A BUY order checks the lowest ask.
-2. A SELL order checks the highest bid.
-3. Matching continues while the prices cross.
-4. The executed quantity is the smaller of the incoming and resting quantities.
-5. The resting order's price is used as the execution price.
-6. Fully filled resting orders are removed from the book and active-order index.
-7. Any remaining incoming quantity is added to the book.
+Profiling: Uses macOS Instruments / Time Profiler to identify actual runtime hotspots.
 
-## Complexity
+Memory optimization: Uses a recycling allocator for std::list nodes and reserves capacity for major containers.
 
-Let `P` be the number of price levels and `K` the number of resting orders consumed by a match.
+Architecture
 
-| Operation                           | Complexity                                                                                                              |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Best bid / ask lookup               | O(1)                                                                                                                    |
-| Price-level lookup / insertion      | O(log P)                                                                                                                |
-| Active order ID lookup              | Average O(1)                                                                                                            |
-| Cancel by ID                        | Average O(1) for the list removal once the iterator is located; O(log P) if an empty price level also has to be removed |
-| Quantity modification at same price | Average O(1)                                                                                                            |
-| Price modification                  | O(log P), excluding any matching triggered by the new price                                                             |
-| Matching                            | Depends on the number of orders consumed and price-level operations                                                     |
+Data structures
 
-These are data-structure-level complexity estimates. Actual runtime also depends on workload, allocation behavior, cache locality, branching, and implementation details.
+Component
 
-## Build
+Purpose
+
+std::map for bids
+
+Maintains bid price levels in descending order
+
+std::map for asks
+
+Maintains ask price levels in ascending order
+
+std::list<Order, PoolAllocator<Order>>
+
+Stores FIFO orders within each price level
+
+std::unordered_map
+
+Maps active order IDs to their side, price, and list iterator
+
+std::vector<Trade>
+
+Stores executed trades
+
+The order ID index allows an active order to be located without scanning every price level.
+
+std::list is used instead of std::queue because cancellation may target an order anywhere within a price level. Given a valid iterator, removing a list element is O(1).
+
+The list allocator was replaced with a recycling allocator so released list-node storage can be reused by later allocations. The allocator is intentionally a recycling allocator rather than a fully preallocated contiguous memory pool: when no recycled node is available, it still obtains memory from operator new.
+
+Matching rules
+
+A BUY order checks the lowest ask.
+
+A SELL order checks the highest bid.
+
+Matching continues while prices cross.
+
+The executed quantity is the smaller of the incoming and resting quantities.
+
+The resting order's price is used as the execution price.
+
+Fully filled resting orders are removed from the book and active-order index.
+
+Any remaining incoming quantity is added to the book.
+
+Complexity
+
+Let P be the number of price levels and K the number of resting orders consumed by a match.
+
+Operation
+
+Complexity
+
+Best bid / ask lookup
+
+O(1)
+
+Price-level lookup / insertion
+
+O(log P)
+
+Active order ID lookup
+
+Average O(1)
+
+Cancel by ID
+
+Average O(1) for ID lookup and list removal; O(log P) if an empty price level also has to be removed
+
+Quantity modification at same price
+
+Average O(1)
+
+Price modification
+
+O(log P), excluding any matching triggered by the new price
+
+Matching
+
+Depends on the number of orders consumed and price-level operations
+
+These are data-structure-level complexity estimates. Actual runtime also depends on allocation behavior, cache locality, branching, workload, compiler, and implementation details.
+
+Build
 
 Requires a C++17-compatible compiler and CMake.
 
-### Debug build
+Debug build
 
-```bash
 cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-debug
 ./build-debug/tests
-```
 
-### Release build
+Release build
 
-```bash
-cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+The benchmark experiments use an explicit -O2 -DNDEBUG Release configuration for reproducibility:
+
+rm -rf build-release
+cmake -S . -B build-release \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG"
 cmake --build build-release
-```
 
 Run the main program:
 
-```bash
 ./build-release/main
-```
 
 Run the benchmark:
 
-```bash
 ./build-release/benchmark
-```
 
-After modifying a source file such as `benchmark.cpp`, the normal workflow is:
+After modifying a source file without changing the build configuration, the normal workflow is:
 
-```bash
 cmake --build build-release
 ./build-release/benchmark
-```
 
-The initial CMake configuration command only needs to be rerun when changing the build configuration or `CMakeLists.txt`.
-
-## Testing
+Testing
 
 The test suite exercises order matching and order-management behavior, including:
 
-* Full and partial fills
-* Multiple price-level matching
-* Non-crossing orders
-* Order cancellation
-* Quantity modification
-* Price modification
+Full and partial fills
 
-Tests should verify exact trade details rather than only whether an order remains in the book.
+Multiple price-level matching
+
+Non-crossing orders
+
+Order cancellation
+
+Quantity modification
+
+Price modification
+
+Tests verify exact trade details rather than only whether an order remains in the book.
 
 Tests are run in a Debug build so assertions remain enabled.
 
-## Benchmark
+Benchmark
 
-The benchmark uses a fixed-seed synthetic workload so that different implementations can be compared under the same order flow.
+The benchmark uses a fixed random seed and a synthetic order flow so implementations can be compared under the same generated workload.
 
-### Baseline
+Current benchmark workload
 
-The recorded baseline is the original implementation using the standard `std::list` allocator.
+Orders per run: 10,000
 
-| Metric                            |                 Baseline |
-| --------------------------------- | -----------------------: |
-| Orders per run                    |                   10,000 |
-| Warmup runs                       |                        3 |
-| Measured runs                     |                       20 |
-| Total submissions measured        |                  200,000 |
-| Total trades across measured runs |                  156,540 |
-| Mean runtime per 10,000-order run |               2.24120 ms |
-| Median runtime per run            |               2.20821 ms |
-| Minimum runtime                   |               2.15467 ms |
-| Maximum runtime                   |               2.47554 ms |
-| Aggregate throughput              | ~4.46 million orders/sec |
+Measured runs: 1,000
 
-The approximate mean batch time divided by the number of submissions is:
+Price range: 90.00 to 110.00
 
-```text
-2.24120 ms / 10,000 ≈ 224 ns/order
-```
+Price tick: 0.01
 
-This is an aggregate estimate derived from the batch benchmark, **not a direct measurement of individual order latency**.
+Warmup runs: 3
 
-Results depend on hardware, compiler, build configuration, workload, and system activity. The benchmark is intended for relative comparison between implementations rather than as a claim of production or exchange-level performance.
+Random seed: 42
 
-## Profiling
+Prices are generated as integer ticks and converted to the current double price representation. This avoids arbitrary floating-point prices creating a different std::map price level for nearly every order.
 
-The Release-build benchmark was profiled with macOS Instruments / Time Profiler to identify where runtime actually goes rather than relying on assumptions.
+Current clean baseline
 
-### Original implementation
+The current clean benchmark includes:
 
-The initial profile of the standard `std::list` implementation showed:
+PoolAllocator for list nodes
 
-| Call path                       |          Weight |   Self |
-| ------------------------------- | --------------: | -----: |
-| `OrderBook::addOrder`           |  91.7% (2.23 s) | 434 ms |
-| ↳ `OrderBook::matchSellOrder`   |  17.4% (424 ms) |  71 ms |
-| ↳↳ Heap allocation/deallocation | ~7.5% (~183 ms) |      — |
-| ↳↳ Order-ID hash lookup         |    3.5% (86 ms) |   4 ms |
+orderMap.reserve(NUM_ORDERS)
 
-The allocation-related samples included `operator new`, `_xzm_free`, `_free`, `operator delete`, and `malloc_type_malloc`.
+tradeHistory.reserve(NUM_ORDERS)
 
-### Initial finding
+Direct tradeHistory.push_back(...) from the matching functions, removing the temporary per-order std::vector<Trade>
 
-Approximately **7.5% of total sampled runtime was associated with heap allocation and deallocation**.
+Three separate invocations of the 1,000-run benchmark produced the following ranges:
 
-This provided measured evidence that the node-based `std::list` design was carrying a meaningful allocation cost. The cost was therefore treated as an optimization target rather than simply assumed from the container's theoretical properties.
+Metric
 
-This led to the first targeted performance experiment: replacing the list's default allocator with a recycling allocator.
+Observed range across 3 invocations
 
-## Recycling allocator experiment
+Mean runtime per 10,000-order run
 
-A custom `PoolAllocator` was introduced for the order lists.
+1.191–1.240 ms
 
-The allocator maintains a free list of previously released list-node allocations:
+P50
 
-```text
+1.166–1.208 ms
+
+P99
+
+1.248–1.782 ms
+
+P99.9
+
+1.367–4.264 ms
+
+Maximum
+
+1.368–5.582 ms
+
+CV
+
+1.31%–16.66%
+
+Aggregate throughput
+
+8.06–8.40 million orders/sec
+
+Trades per benchmark run
+
+7,750
+
+Across the three invocations, the arithmetic mean of the run-level mean runtimes was approximately 1.22 ms per 10,000-order batch.
+
+These are batch-level measurements, not direct per-order latency measurements. Run-to-run tail variation is expected on a general-purpose desktop OS because scheduling and other system activity can affect wall-clock measurements.
+
+Historical standard-allocation baseline
+
+Before the recycling allocator and later optimizations, the original benchmark used arbitrary floating-point prices and 20 measured runs:
+
+Metric
+
+Original baseline
+
+Orders per run
+
+10,000
+
+Warmup runs
+
+3
+
+Measured runs
+
+20
+
+Total submissions measured
+
+200,000
+
+Total trades across measured runs
+
+156,540
+
+Mean runtime per 10,000-order run
+
+2.24120 ms
+
+Median runtime per run
+
+2.20821 ms
+
+Minimum runtime
+
+2.15467 ms
+
+Maximum runtime
+
+2.47554 ms
+
+Aggregate throughput
+
+~4.46 million orders/sec
+
+The old result is retained as a historical reference rather than the current benchmark baseline because the workload definition has since been improved to use discrete price ticks.
+
+Profiling
+
+The Release-build benchmark is profiled with macOS Instruments / Time Profiler to identify where runtime actually goes rather than relying on assumptions.
+
+Initial profiling findings
+
+The original implementation's profile showed substantial time associated with heap allocation and deallocation in the matching path. This motivated the recycling-allocator experiment.
+
+A later profile of the allocator-enabled implementation showed several meaningful contributors, including:
+
+Hotspot
+
+Approx. sampled weight in the profiled run
+
+OrderBook::matchSellOrder()
+
+19.1%
+
+OrderBook::matchBuyOrder()
+
+16.9%
+
+unordered_map insertion / __emplace_unique
+
+16.0%
+
+Red-black tree insertion balancing
+
+5.3%
+
+unordered_map erase
+
+3.9%
+
+operator new
+
+7.2%
+
+std::vector<Trade> insertion
+
+2.1%
+
+std::map erase
+
+3.3%
+
+Profiler percentages represent sampled CPU time and parent/child call paths overlap, so the percentages should not be summed as independent costs.
+
+The profile demonstrated that list-node allocation was only one part of the runtime. Other work in the active-order hash table, price-level tree, matching logic, trade-history storage, and general allocation remained significant.
+
+Performance optimization history
+
+1. Recycling allocator for list nodes
+
+The order lists use a custom PoolAllocator that retains released list-node addresses for reuse.
+
+Conceptually:
+
 allocate
-    │
-    ├── recycled node available ──→ reuse
-    │
-    └── otherwise ────────────────→ operator new
-```
+   │
+   ├── recycled node available ──→ reuse
+   │
+   └── otherwise ────────────────→ operator new
 
-When a list node is released, the allocator retains its address for later reuse instead of immediately returning it to the general-purpose allocator.
+The allocator's measured reuse rate was very high on the earlier workload. Despite that, the end-to-end benchmark improvement was relatively small, demonstrating that a high number of recycled allocations does not automatically make allocation the dominant system bottleneck.
 
-This implementation is a **recycling allocator**, not yet a fully preallocated contiguous memory pool. When no recycled node is available, it still obtains memory from `operator new`.
+2. Reserve capacity for the active-order index
 
-### Allocation counters
+orderMap.reserve(expectedOrders) was added after profiling showed substantial time in unordered_map insertion.
 
-During the benchmark, the allocator recorded approximately:
+reserve() prepares bucket capacity in advance so the hash table does not have to repeatedly grow and rehash as entries are inserted.
 
-```text
-Fresh allocations:      2,077
-Recycled allocations: 140,799
-```
+The profile after this change showed a substantial reduction in sampled time attributed to the hash-table insertion path, supporting the original rehash/growth hypothesis.
 
-That corresponds to approximately **98.5% of recorded single-node allocation requests being satisfied through the recycling path**.
+3. Reserve trade-history capacity
 
-This demonstrates that the allocator is being exercised heavily and successfully reusing previously released storage.
+tradeHistory.reserve(expectedOrders) was added because the benchmark generates thousands of trades per run. The goal is to reduce repeated vector-capacity growth as trade records are appended.
 
-### Benchmark comparison
+4. Remove the temporary per-order trade vector
 
-Using the same benchmark configuration as the baseline:
+The matching functions previously built a temporary std::vector<Trade> and then inserted its contents into tradeHistory.
 
-| Metric               | Standard `std::list` | Recycling allocator |                    Change |
-| -------------------- | -------------------: | ------------------: | ------------------------: |
-| Mean                 |           2.24120 ms |      **2.19041 ms** |         **~2.27% faster** |
-| Median               |           2.20821 ms |      **2.18777 ms** |         **~0.93% faster** |
-| Minimum              |           2.15467 ms |      **1.99071 ms** |          **~7.61% lower** |
-| Maximum              |           2.47554 ms |      **3.03750 ms** | **higher in this sample** |
-| Aggregate throughput |          4.46189 M/s |     **4.56536 M/s** |         **~2.32% higher** |
+The current implementation writes trades directly to the final history vector:
 
-### Interpretation
+Previous:
+match → temporary vector<Trade> → tradeHistory
 
-The recycling allocator produced a **small improvement in end-to-end mean runtime and throughput**.
+Current:
+match ────────────────────────→ tradeHistory
 
-The improvement is considerably smaller than the percentage of allocation requests being recycled because heap allocation is only one part of total order-book execution. Matching logic, tree operations, hash-table operations, list traversal, trade-history storage, branching, and other work remain unchanged.
+This removes an intermediate storage path and associated copying/insertion work. The benchmark showed a large end-to-end improvement after this change while preserving the same total trade count for the benchmark workload.
 
-The result is therefore treated as a measured optimization rather than a claim that memory pooling solved the overall latency problem.
+5. Discrete price ticks in the benchmark
 
-## Re-profiled implementation
+The benchmark previously generated arbitrary floating-point prices. That could create a very large number of distinct std::map price levels even inside the relatively narrow 90–110 price range.
 
-After adding the recycling allocator, the benchmark was profiled again.
+The benchmark now uses a 0.01 tick size:
 
-The profile confirms that the allocator is being used by the list:
+90.00
+90.01
+90.02
+...
+110.00
 
-```text
-std::__1::__list_imp<Order, PoolAllocator<Order>>::__delete_node
-```
+This makes the synthetic workload easier to reason about and better aligned with the idea of discrete market price levels. It is a benchmark-design change, so current tick-based results are not directly compared numerically with the earlier arbitrary-price results.
 
-appears directly in the matching paths.
+Current limitations
 
-The list-node deletion path accounted for only about:
+Single-threaded matching
 
-```text
-10 ms  in matchSellOrder
-10 ms  in matchBuyOrder
-```
+Synthetic input workload
 
-in the profiled run, with no comparable large `free` cost underneath the list-node destruction path. This is consistent with the allocator retaining released nodes for reuse.
+Current price representation still uses double
 
-At the same time, other parts of the matching engine remained significant sources of runtime.
+No network market-data feed or order gateway
 
-### Current major hotspots
+No persistence or recovery
 
-The re-profiled run showed several substantial contributors:
+No exchange-specific validation or trading rules
 
-| Hotspot                                        | Sampled time | Weight |
-| ---------------------------------------------- | -----------: | -----: |
-| `OrderBook::addOrder`                          |       3.49 s |  91.3% |
-| `OrderBook::matchSellOrder`                    |       728 ms |  19.1% |
-| `OrderBook::matchBuyOrder`                     |       646 ms |  16.9% |
-| `unordered_map` insertion / `__emplace_unique` |       611 ms |  16.0% |
-| Red-black tree insertion balancing             |       203 ms |   5.3% |
-| `unordered_map` erase                          |       150 ms |   3.9% |
-| `operator new`                                 |       276 ms |   7.2% |
-| `std::vector<Trade>` insertion                 |        82 ms |   2.1% |
-| `std::map` erase                               |       127 ms |   3.3% |
+No direct per-order latency measurement
 
-These percentages are profiler samples and should not be added together across nested call paths because parent and child samples overlap.
+P50/P99/P99.9 currently describe batch runtime distributions, not individual order latency
 
-### Important interpretation
+Recycling allocator is not yet a fully preallocated fixed-capacity pool
 
-The presence of `operator new` in the second profile does **not** mean that the recycling allocator failed.
+Book-size scaling has not yet been systematically benchmarked
 
-The allocator only targets the list's internal node allocations. Other parts of the system continue to use their normal allocators, including:
+Current benchmark does not model realistic order-flow distributions such as clustered price levels, cancellations, bursts, or time-varying activity
 
-* `std::map` price-level nodes
-* `std::unordered_map` nodes / bucket storage
-* `std::vector<Trade>` growth
-* the allocator's own `std::vector<T*>` free-list storage
-* fresh allocations when the recycling pool has no available node
+Roadmap
 
-The re-profile therefore shifted the optimization question from:
+Completed
 
-> "Is list-node allocation expensive?"
+Implement price-time priority matching
 
-to:
+Support full and partial fills
 
-> "Which remaining operations dominate the matching engine after list-node recycling?"
+Implement order cancellation
 
-The current profile identifies the active-order `std::unordered_map`, price-level `std::map`, and trade-history vector as important remaining areas to investigate.
+Implement quantity and price modification
 
-## Performance optimization process
+Expand edge-case tests and verify exact trade outputs
 
-The project now follows a measurement-driven optimization loop:
+Build a repeatable Release benchmark
 
-```text
-Implement correct data structure
-            ↓
-Establish benchmark baseline
-            ↓
-Profile the workload
-            ↓
-Identify a measured hotspot
-            ↓
-Apply one targeted change
-            ↓
-Benchmark against the same baseline
-            ↓
-Re-profile
-            ↓
-Identify the next bottleneck
-```
+Establish a standard-allocation baseline
 
-The allocator experiment is the first completed iteration of this process.
+Profile the baseline with macOS Instruments / Time Profiler
 
-## Current limitations
+Implement and benchmark a recycling allocator for list nodes
 
-* Single-threaded matching
-* Synthetic input workload
-* No network market-data feed or order gateway
-* No persistence or recovery
-* No exchange-specific validation or trading rules
-* No direct per-order latency measurement
-* No P50/P99/P99.9 latency distribution for individual orders
-* Recycling allocator is not yet a fully preallocated fixed-capacity pool
-* Book-size scaling has not yet been systematically benchmarked
-* Current benchmark measures batch runtime and aggregate throughput rather than production-style order latency
-* Remaining runtime is still distributed across hash-table, tree, vector, matching, and other operations
+Re-profile the allocator-enabled implementation
 
-## Roadmap
+Add orderMap.reserve(...)
 
-### Completed
+Add tradeHistory.reserve(...)
 
-* [x] Implement price-time priority matching
-* [x] Support full and partial fills
-* [x] Implement order cancellation
-* [x] Implement quantity and price modification
-* [x] Expand edge-case tests and verify exact trade outputs
-* [x] Build a repeatable Release benchmark
-* [x] Establish a standard `std::list` baseline
-* [x] Profile the baseline with macOS Instruments / Time Profiler
-* [x] Identify heap allocation as a measurable hotspot
-* [x] Implement a recycling allocator for list nodes
-* [x] Measure allocator reuse
-* [x] Benchmark the allocator against the baseline
-* [x] Re-profile the optimized implementation
+Remove the temporary per-order std::vector<Trade>
 
-### Next performance work
+Add P50 / P99 / P99.9 batch-runtime measurements
 
-* [ ] Investigate `unordered_map` insertion / erase costs
-* [ ] Evaluate `reserve()` and rehash behavior for the active-order index
-* [ ] Investigate `std::vector<Trade>` growth and reservation
-* [ ] Evaluate price-level `std::map` allocation and tree-management costs
-* [ ] Implement and benchmark a true preallocated node pool
-* [ ] Re-profile after each targeted optimization
-* [ ] Measure per-order latency distributions (P50, P95, P99, P99.9)
-* [ ] Benchmark sustained workloads
-* [ ] Benchmark different book sizes and order-flow patterns
-* [ ] Explore alternative order-storage representations, including intrusive or array-based designs
+Add coefficient-of-variation reporting
 
-### Systems extensions
+Define a discrete 0.01 benchmark price tick
 
-* [ ] Build a market-data feed handler
-* [ ] Study concurrency and multithreading after establishing single-threaded correctness
-* [ ] Study networking and transport considerations
-* [ ] Explore separation of order intake and matching components
-* [ ] Evaluate latency and architectural tradeoffs introduced by concurrency
+Next performance work
 
-## Tech Stack
+Profile the current tick-based workload
 
-* C++17
-* STL (`map`, `list`, `unordered_map`, `vector`)
-* CMake
-* `std::chrono`
-* `std::random`
-* macOS Instruments / Time Profiler
-* macOS / AppleClang
+Investigate remaining unordered_map insertion / erase costs
 
-## Project Focus
+Investigate std::map price-level allocation and tree-management costs
+
+Compare alternative price-level representations under the same tick-based workload
+
+Benchmark different book sizes and order-flow patterns
+
+Benchmark sustained workloads
+
+Re-profile after each targeted optimization
+
+Measure individual-order latency distributions (P50, P95, P99, P99.9) with a measurement method that minimizes instrumentation overhead
+
+Explore more efficient order-storage representations, including intrusive or array-based designs
+
+Evaluate a true preallocated fixed-capacity node pool
+
+Systems extensions
+
+Build a market-data feed handler
+
+Study concurrency and multithreading after establishing single-threaded correctness
+
+Study networking and transport considerations
+
+Explore separation of order intake and matching components
+
+Evaluate latency and architectural tradeoffs introduced by concurrency
+
+Tech Stack
+
+C++17
+
+STL (map, list, unordered_map, vector)
+
+CMake
+
+std::chrono
+
+std::random
+
+macOS Instruments / Time Profiler
+
+macOS / AppleClang
+
+Project Focus
 
 This project is being developed incrementally, prioritizing correctness, data-structure understanding, measurement, and targeted optimization before moving into concurrency and networking.
 
-The performance work is intentionally driven by evidence:
+The performance workflow is:
 
-```text
 Correctness
     ↓
 Data structures
@@ -394,7 +527,11 @@ Benchmark
     ↓
 Profile
     ↓
-Optimize
+Identify a measured hotspot
+    ↓
+Apply one targeted change
+    ↓
+Benchmark against the same workload
     ↓
 Re-profile
     ↓
@@ -403,6 +540,5 @@ Repeat
 Concurrency
     ↓
 Networking / system architecture
-```
 
 The goal is not to claim production exchange performance. The goal is to build a technically defensible matching engine while demonstrating the ability to reason about data structures, measure real runtime behavior, identify bottlenecks, and evaluate optimizations quantitatively.

@@ -33,11 +33,17 @@ private:
     std::unordered_map<int, OrderLocation> orderMap;
 
 public:
+    // std::size_t getBidLevelCount() const;
+
+    // std::size_t getAskLevelCount() const;
+
+    explicit OrderBook(std::size_t expectedOrders = 0);
+
     void addOrder(Order order);
 
-    std::vector<Trade> matchBuyOrder(Order& order);
+    void matchBuyOrder(Order& order);
 
-    std::vector<Trade> matchSellOrder(Order& order);
+    void matchSellOrder(Order& order);
 
     void cancelOrder(int orderId);
 

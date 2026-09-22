@@ -3,13 +3,30 @@
 #include <algorithm>
 #include <iostream>
 
+OrderBook::OrderBook(std::size_t expectedOrders)
+{
+    if (expectedOrders > 0)
+    {
+        orderMap.reserve(expectedOrders);
+        tradeHistory.reserve(expectedOrders);
+    }
+}
+
+// std::size_t OrderBook::getBidLevelCount() const{
+//     return bids.size();
+// }
+
+// std::size_t OrderBook::getAskLevelCount() const{
+//     return asks.size();
+// }
+
 void OrderBook::addOrder(Order order)
 {
     if (order.isBuy)
     {
-        auto trades = matchBuyOrder(order);
+        matchBuyOrder(order);
 
-        tradeHistory.insert(tradeHistory.end(), trades.begin(), trades.end());
+        // tradeHistory.insert(tradeHistory.end(), trades.begin(), trades.end());
 
         if (order.quantity > 0)
         {
@@ -22,9 +39,9 @@ void OrderBook::addOrder(Order order)
     }
     else
     {
-        auto trades = matchSellOrder(order);
+        matchSellOrder(order);
 
-        tradeHistory.insert(tradeHistory.end(), trades.begin(), trades.end());
+        // tradeHistory.insert(tradeHistory.end(), trades.begin(), trades.end());
 
         if (order.quantity > 0)
         {
@@ -66,9 +83,9 @@ int OrderBook::getOrderQuantity(int orderId) const
     return it->second.it->quantity;
 }
 
-std::vector<Trade> OrderBook::matchBuyOrder(Order& order)
+void OrderBook::matchBuyOrder(Order& order)
 {
-    std::vector<Trade> trades;
+    // std::vector<Trade> trades;
 
     while (!asks.empty() && order.quantity > 0)
     {
@@ -91,7 +108,7 @@ std::vector<Trade> OrderBook::matchBuyOrder(Order& order)
         order.quantity -= tradeQuantity;
         restingOrder.quantity -= tradeQuantity;
 
-        trades.push_back({order.id, restingOrder.id, bestAsk, tradeQuantity});
+        tradeHistory.push_back({order.id, restingOrder.id, bestAsk, tradeQuantity});
 
         if (restingOrder.quantity == 0)
         {
@@ -104,13 +121,13 @@ std::vector<Trade> OrderBook::matchBuyOrder(Order& order)
             asks.erase(mapIt);
         }
     }
-    return trades;
+    // return trades;
 }
 
 
-std::vector<Trade> OrderBook::matchSellOrder(Order& order)
+void OrderBook::matchSellOrder(Order& order)
 {
-    std::vector<Trade> trades;
+    // std::vector<Trade> trades;
 
     while (!bids.empty() && order.quantity > 0)
     {
@@ -133,7 +150,7 @@ std::vector<Trade> OrderBook::matchSellOrder(Order& order)
         order.quantity -= tradeQuantity;
         restingOrder.quantity -= tradeQuantity;
 
-        trades.push_back({restingOrder.id, order.id, bestBid, tradeQuantity});
+        tradeHistory.push_back({restingOrder.id, order.id, bestBid, tradeQuantity});
 
 
         if (restingOrder.quantity == 0)
@@ -147,7 +164,7 @@ std::vector<Trade> OrderBook::matchSellOrder(Order& order)
             bids.erase(mapIt);
         }
     }
-    return trades;
+    // return trades;
 }
 
 
