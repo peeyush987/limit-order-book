@@ -12,12 +12,12 @@ int main()
 {
     constexpr int NUM_ORDERS = 10000;
     constexpr int WARMUP_RUNS = 3;
-    constexpr int MEASURED_RUNS = 20;
+    constexpr int MEASURED_RUNS = 1000;
 
     // Fixed seed -> same workload every time.
     std::mt19937 rng(42);
 
-    std::uniform_real_distribution<double> priceDist(90.0, 110.0);
+    std::uniform_int_distribution<int> priceTickDist(9000, 11000);
     std::uniform_int_distribution<int> quantityDist(1, 100);
     std::uniform_int_distribution<int> sideDist(0, 1);
 
@@ -28,7 +28,7 @@ int main()
     for (int i = 0; i < NUM_ORDERS; ++i)
     {
         bool isBuy = sideDist(rng) == 1;
-        double price = priceDist(rng);
+        double price = priceTickDist(rng)/100.0;
         int quantity = quantityDist(rng);
 
         orders.push_back({
