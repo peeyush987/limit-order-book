@@ -6,7 +6,7 @@ A C++17 implementation of a single-threaded limit order book with price-time pri
 
 This project models the core order-matching logic of an electronic trading system. It maintains buy and sell orders, matches incoming orders against the best available prices, and preserves FIFO priority among orders at the same price level.
 
-The project is being developed incrementally: correctness and data-structure understanding come first, followed by profiling, targeted optimization, and eventually concurrency and networking.
+The project is being developed incrementally: correctness and data-structure understanding come first, followed by profiling and targeted optimization. Concurrency and networking are planned as later system extensions.
 
 The performance work is intentionally measurement-driven. Changes are made only after establishing a benchmark and identifying a concrete runtime cost to investigate.
 
@@ -138,18 +138,46 @@ The benchmark uses a fixed random seed and a synthetic order flow so implementat
 - **Warmup runs:** 3
 - **Random seed:** 42
 
-Prices are generated as integer ticks and converted to the current `double` price representation. This avoids arbitrary floating-point prices creating a different `std::map` price level for nearly every order.
+Prices are generated as integer ticks and converted to the current `double` price representation. This prevents arbitrary floating-point values from creating a separate price level for nearly every order.
 
-### Current clean baseline
+The per-run benchmark output is suppressed; timing samples are collected first and the summary is printed once at the end.
 
-The current clean benchmark includes:
+### Frozen tick-based workload
+
+The 0.01-tick workload is now the fixed workload used for performance comparisons. Results from the earlier arbitrary-floating-point workload are retained only as historical measurements and are not compared numerically with the current workload.
+
+### Tick-based standard-allocation baseline
+
+The unoptimized comparison version uses the original order-book implementation under the current 0.01-tick workload:
+
+- Standard `std::list` allocator
+- No `orderMap.reserve(...)`
+- No `tradeHistory.reserve(...)`
+- Temporary per-order `std::vector<Trade>`
+
+Three separate invocations of the 1,000-run benchmark produced:
+
+| Metric | Observed range across 3 invocations |
+|---|---:|
+| Mean runtime per 10,000-order run | 2.098–2.285 ms |
+| Median runtime per run | 2.083–2.092 ms |
+| Minimum runtime | 2.052–2.059 ms |
+| Maximum runtime | 2.703–6.132 ms |
+| Aggregate throughput | 4.38–4.77 million orders/sec |
+| Trades per benchmark run | 7,750 |
+
+The arithmetic mean of the three run-level mean runtimes was approximately **2.161 ms per 10,000-order batch**.
+
+### Current optimized implementation
+
+The current implementation adds the measured optimizations:
 
 - `PoolAllocator` for list nodes
 - `orderMap.reserve(NUM_ORDERS)`
 - `tradeHistory.reserve(NUM_ORDERS)`
 - Direct `tradeHistory.push_back(...)` from the matching functions, removing the temporary per-order `std::vector<Trade>`
 
-Three separate invocations of the 1,000-run benchmark produced the following ranges:
+Three separate invocations of the same 1,000-run benchmark produced:
 
 | Metric | Observed range across 3 invocations |
 |---|---:|
@@ -157,20 +185,23 @@ Three separate invocations of the 1,000-run benchmark produced the following ran
 | P50 | 1.166–1.208 ms |
 | P99 | 1.248–1.782 ms |
 | P99.9 | 1.367–4.264 ms |
-| Maximum | 1.368–5.582 ms |
+| Minimum runtime | 1.176–1.187 ms |
+| Maximum runtime | 1.368–5.582 ms |
 | CV | 1.31%–16.66% |
 | Aggregate throughput | 8.06–8.40 million orders/sec |
 | Trades per benchmark run | 7,750 |
 
-Across the three invocations, the arithmetic mean of the run-level mean runtimes was approximately **1.22 ms per 10,000-order batch**.
+The arithmetic mean of the three run-level mean runtimes was approximately **1.220 ms per 10,000-order batch**.
+
+Across these three invocations, the optimized implementation's arithmetic mean runtime was approximately **43.5% lower** than the corresponding tick-based standard-allocation baseline, while aggregate throughput was approximately **1.77× higher** when comparing the arithmetic means of the three invocation-level throughput measurements.
 
 These are batch-level measurements, not direct per-order latency measurements. Run-to-run tail variation is expected on a general-purpose desktop OS because scheduling and other system activity can affect wall-clock measurements.
 
-### Historical standard-allocation baseline
+### Historical arbitrary-price baseline
 
-Before the recycling allocator and later optimizations, the original benchmark used arbitrary floating-point prices and 20 measured runs:
+Before the benchmark workload was changed to discrete price ticks, the original benchmark used arbitrary floating-point prices and 20 measured runs:
 
-| Metric | Original baseline |
+| Metric | Original historical baseline |
 |---|---:|
 | Orders per run | 10,000 |
 | Warmup runs | 3 |
@@ -183,11 +214,11 @@ Before the recycling allocator and later optimizations, the original benchmark u
 | Maximum runtime | 2.47554 ms |
 | Aggregate throughput | ~4.46 million orders/sec |
 
-The old result is retained as a historical reference rather than the current benchmark baseline because the workload definition has since been improved to use discrete price ticks.
+The old result is retained as a historical reference rather than the current benchmark baseline because the workload definition was subsequently changed to use discrete price ticks.
 
 ## Profiling
 
-The Release-build benchmark is profiled with macOS Instruments / Time Profiler to identify where runtime actually goes rather than relying on assumptions.
+The Release-build benchmark was profiled with macOS Instruments / Time Profiler to identify where runtime actually goes rather than relying on assumptions.
 
 ### Initial profiling findings
 
@@ -210,6 +241,22 @@ Profiler percentages represent sampled CPU time and parent/child call paths over
 
 The profile demonstrated that list-node allocation was only one part of the runtime. Other work in the active-order hash table, price-level tree, matching logic, trade-history storage, and general allocation remained significant.
 
+### Final tick-based profiling
+
+After the benchmark was changed to 0.01 price ticks and the optimized implementation was profiled again, the major sampled contributors were:
+
+| Hotspot | Approx. sampled weight in the profiled run |
+|---|---:|
+| `OrderBook::matchBuyOrder()` | 15.7% |
+| `unordered_map` insertion / `__emplace_unique` | 15.4% |
+| `OrderBook::matchSellOrder()` | 14.2% |
+| Red-black tree insertion balancing | 6.6% |
+| `operator new` | 8.2% |
+
+The profile also showed that the temporary `std::vector<Trade>` insertion path from the earlier implementation was no longer a meaningful hotspot after direct writes to `tradeHistory`.
+
+At this point, the single-threaded optimization phase is considered complete. The remaining hotspots are documented rather than pursued indefinitely.
+
 ## Performance optimization history
 
 ### 1. Recycling allocator for list nodes
@@ -223,16 +270,18 @@ allocate
    │
    ├── recycled node available ──→ reuse
    │
-   └── otherwise ────────────────→ operator new
+   └── otherwise ───────────────→ operator new
 ```
 
 The allocator's measured reuse rate was very high on the earlier workload. Despite that, the end-to-end benchmark improvement was relatively small, demonstrating that a high number of recycled allocations does not automatically make allocation the dominant system bottleneck.
+
+The allocator is intentionally a recycling allocator, not a fully preallocated contiguous pool.
 
 ### 2. Reserve capacity for the active-order index
 
 `orderMap.reserve(expectedOrders)` was added after profiling showed substantial time in `unordered_map` insertion.
 
-`reserve()` prepares bucket capacity in advance so the hash table does not have to repeatedly grow and rehash as entries are inserted.
+`reserve()` prepares sufficient bucket capacity in advance so the hash table does not have to repeatedly grow and rehash as entries are inserted.
 
 The profile after this change showed a substantial reduction in sampled time attributed to the hash-table insertion path, supporting the original rehash/growth hypothesis.
 
@@ -254,9 +303,9 @@ Current:
 match ────────────────────────→ tradeHistory
 ```
 
-This removes an intermediate storage path and associated copying/insertion work. The benchmark showed a large end-to-end improvement after this change while preserving the same total trade count for the benchmark workload.
+This removes an intermediate storage path and associated copying/insertion work. The benchmark showed a large end-to-end improvement after this change while preserving the same total trade count for the workload being tested.
 
-### 5. Discrete price ticks in the benchmark
+### 5. Improve the benchmark workload
 
 The benchmark previously generated arbitrary floating-point prices. That could create a very large number of distinct `std::map` price levels even inside the relatively narrow 90–110 price range.
 
@@ -270,7 +319,7 @@ The benchmark now uses a 0.01 tick size:
 110.00
 ```
 
-This makes the synthetic workload easier to reason about and better aligned with the idea of discrete market price levels. It is a benchmark-design change, so current tick-based results are not directly compared numerically with the earlier arbitrary-price results.
+This is a benchmark-design change, not a performance optimization. It makes the synthetic workload deterministic in terms of price increments and more directly models a market with discrete price ticks.
 
 ## Current limitations
 
@@ -297,28 +346,24 @@ This makes the synthetic workload easier to reason about and better aligned with
 - [x] Expand edge-case tests and verify exact trade outputs
 - [x] Build a repeatable Release benchmark
 - [x] Establish a standard-allocation baseline
-- [x] Profile the baseline with macOS Instruments / Time Profiler
+- [x] Define and freeze a discrete 0.01 benchmark price tick
+- [x] Profile the original benchmark with macOS Instruments / Time Profiler
 - [x] Implement and benchmark a recycling allocator for list nodes
 - [x] Re-profile the allocator-enabled implementation
 - [x] Add `orderMap.reserve(...)`
 - [x] Add `tradeHistory.reserve(...)`
 - [x] Remove the temporary per-order `std::vector<Trade>`
+- [x] Remove per-run benchmark output from the timed benchmark workflow
 - [x] Add P50 / P99 / P99.9 batch-runtime measurements
 - [x] Add coefficient-of-variation reporting
-- [x] Define a discrete 0.01 benchmark price tick
+- [x] Establish an apples-to-apples tick-based baseline
+- [x] Profile the current optimized tick-based workload
 
-### Next performance work
+### Performance phase status
 
-- [ ] Profile the current tick-based workload
-- [ ] Investigate remaining `unordered_map` insertion / erase costs
-- [ ] Investigate `std::map` price-level allocation and tree-management costs
-- [ ] Compare alternative price-level representations under the same tick-based workload
-- [ ] Benchmark different book sizes and order-flow patterns
-- [ ] Benchmark sustained workloads
-- [ ] Re-profile after each targeted optimization
-- [ ] Measure individual-order latency distributions (P50, P95, P99, P99.9) with a measurement method that minimizes instrumentation overhead
-- [ ] Explore more efficient order-storage representations, including intrusive or array-based designs
-- [ ] Evaluate a true preallocated fixed-capacity node pool
+The single-threaded performance phase is intentionally **complete** at this point. Further micro-optimizations are out of scope for this project milestone.
+
+Possible future experiments such as specialized order-ID indexing, alternative price-level representations, intrusive/array-based storage, or a fully preallocated node pool are documented as future study topics rather than required work.
 
 ### Systems extensions
 
@@ -361,7 +406,7 @@ Benchmark against the same workload
     ↓
 Re-profile
     ↓
-Repeat
+Stop at a defensible optimization threshold
     ↓
 Concurrency
     ↓
