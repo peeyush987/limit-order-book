@@ -10,6 +10,7 @@
 #include <map>
 #include <unordered_map>
 #include <vector>
+#include <mutex>
 
 using OrderList = std::list<Order, PoolAllocator<Order>>;
 
@@ -32,6 +33,17 @@ private:
     // Order ID -> location of actual order
     std::unordered_map<int, OrderLocation> orderMap;
 
+    // Mutex for thread safety
+    mutable std::mutex mutex_;
+
+    void addOrderUnlocked(Order order);
+
+    void cancelOrderUnlocked(int orderId);
+
+    void matchBuyOrderUnlocked(Order& order);
+
+    void matchSellOrderUnlocked(Order& order);
+
 public:
     // std::size_t getBidLevelCount() const;
 
@@ -40,10 +52,6 @@ public:
     explicit OrderBook(std::size_t expectedOrders = 0);
 
     void addOrder(Order order);
-
-    void matchBuyOrder(Order& order);
-
-    void matchSellOrder(Order& order);
 
     void cancelOrder(int orderId);
 

@@ -12,19 +12,12 @@ OrderBook::OrderBook(std::size_t expectedOrders)
     }
 }
 
-// std::size_t OrderBook::getBidLevelCount() const{
-//     return bids.size();
-// }
 
-// std::size_t OrderBook::getAskLevelCount() const{
-//     return asks.size();
-// }
 
-void OrderBook::addOrder(Order order)
-{
+void OrderBook::addOrderUnlocked(Order order) {
     if (order.isBuy)
     {
-        matchBuyOrder(order);
+        matchBuyOrderUnlocked(order);
 
         // tradeHistory.insert(tradeHistory.end(), trades.begin(), trades.end());
 
@@ -39,7 +32,7 @@ void OrderBook::addOrder(Order order)
     }
     else
     {
-        matchSellOrder(order);
+        matchSellOrderUnlocked(order);
 
         // tradeHistory.insert(tradeHistory.end(), trades.begin(), trades.end());
 
@@ -54,13 +47,22 @@ void OrderBook::addOrder(Order order)
     }
 }
 
+void OrderBook::addOrder(Order order)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    addOrderUnlocked(order);
+
+}
+
 bool OrderBook::hasOrder(int orderId) const
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     return orderMap.find(orderId) != orderMap.end();
 }
 
 bool OrderBook::hasPriceLevel(bool isBuy, double price) const
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     if (isBuy)
     {
         return bids.find(price) != bids.end();
@@ -73,6 +75,7 @@ bool OrderBook::hasPriceLevel(bool isBuy, double price) const
 
 int OrderBook::getOrderQuantity(int orderId) const
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     auto it = orderMap.find(orderId);
 
     if (it == orderMap.end())
@@ -83,7 +86,7 @@ int OrderBook::getOrderQuantity(int orderId) const
     return it->second.it->quantity;
 }
 
-void OrderBook::matchBuyOrder(Order& order)
+void OrderBook::matchBuyOrderUnlocked(Order& order)
 {
     // std::vector<Trade> trades;
 
@@ -125,7 +128,7 @@ void OrderBook::matchBuyOrder(Order& order)
 }
 
 
-void OrderBook::matchSellOrder(Order& order)
+void OrderBook::matchSellOrderUnlocked(Order& order)
 {
     // std::vector<Trade> trades;
 
@@ -167,9 +170,7 @@ void OrderBook::matchSellOrder(Order& order)
     // return trades;
 }
 
-
-void OrderBook::cancelOrder(int orderId)
-{
+void OrderBook::cancelOrderUnlocked(int orderId) {
     auto it = orderMap.find(orderId);
 
     if (it == orderMap.end())
@@ -206,8 +207,16 @@ void OrderBook::cancelOrder(int orderId)
 }
 
 
+void OrderBook::cancelOrder(int orderId)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    cancelOrderUnlocked(orderId);
+}
+
+
 void OrderBook::modifyOrder(int orderId, int newQuantity, double newPrice)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     auto it = orderMap.find(orderId);
 
     if (it == orderMap.end())
@@ -226,7 +235,7 @@ void OrderBook::modifyOrder(int orderId, int newQuantity, double newPrice)
 
     if (newQuantity == 0)
     {
-        cancelOrder(orderId);
+        cancelOrderUnlocked(orderId);
         return;
     }
 
@@ -239,7 +248,7 @@ void OrderBook::modifyOrder(int orderId, int newQuantity, double newPrice)
 
     if (newPrice != location.price)
     {
-        cancelOrder(orderId);
+        cancelOrderUnlocked(orderId);
 
         Order modifiedOrder = {
             orderId,
@@ -248,7 +257,7 @@ void OrderBook::modifyOrder(int orderId, int newQuantity, double newPrice)
             newQuantity
         };
 
-        addOrder(modifiedOrder);
+        addOrderUnlocked(modifiedOrder);
     }
     else
     {
@@ -259,6 +268,7 @@ void OrderBook::modifyOrder(int orderId, int newQuantity, double newPrice)
 
 void OrderBook::printBook()
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     std::cout << "\n========== ORDER BOOK ==========\n";
 
     std::cout << "\n-- ASKS (SELL) --\n";
