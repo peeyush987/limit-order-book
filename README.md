@@ -1,6 +1,6 @@
 # Limit Order Book & Matching Engine
 
-A C++17 implementation of a single-threaded limit order book with price-time priority matching, order cancellation, modification, trade history, automated tests, repeatable benchmarking, profiling, and measurement-driven performance optimization.
+A C++17 implementation of a single-threaded limit order book with price-time priority matching, order cancellation, modification, trade history, automated tests, repeatable benchmarking, profiling, measurement-driven performance optimization and a thread-safe coarse-grained synchronization layer.
 
 ## Overview
 
@@ -24,6 +24,19 @@ The performance work is intentionally measurement-driven. Changes are made only 
 - **Memory optimization:** Uses a recycling allocator for `std::list` nodes and reserves capacity for major containers.
 
 ## Architecture
+
+### Concurrency
+
+The OrderBook uses a coarse-grained mutex to protect shared mutable
+state. Public operations acquire the mutex before performing a logical
+state transition, while internal *_Unlocked helpers assume the caller
+already holds the lock.
+
+Shared state includes:
+- bids
+- asks
+- orderMap
+- tradeHistory
 
 ### Data structures
 
@@ -120,6 +133,9 @@ The test suite exercises order matching and order-management behavior, including
 - Order cancellation
 - Quantity modification
 - Price modification
+- Concurrent order insertion
+- Concurrent cancellation
+- Concurrent reads and writes
 
 Tests verify exact trade details rather than only whether an order remains in the book.
 
@@ -323,7 +339,9 @@ This is a benchmark-design change, not a performance optimization. It makes the 
 
 ## Current limitations
 
-- Single-threaded matching
+- Matching state transitions remain serialized under a coarse-grained mutex
+- Producer-consumer command queue has not yet been implemented
+- No lock-free queue or low-level atomic synchronization yet
 - Synthetic input workload
 - Current price representation still uses `double`
 - No network market-data feed or order gateway
@@ -358,6 +376,9 @@ This is a benchmark-design change, not a performance optimization. It makes the 
 - [x] Add coefficient-of-variation reporting
 - [x] Establish an apples-to-apples tick-based baseline
 - [x] Profile the current optimized tick-based workload
+- [x] Study concurrency and multithreading
+- [x] Make OrderBook API thread-safe
+- [x] Add concurrent correctness tests
 
 ### Performance phase status
 
@@ -367,11 +388,13 @@ Possible future experiments such as specialized order-ID indexing, alternative p
 
 ### Systems extensions
 
+- [ ] Build producer-consumer command queue
+- [ ] Separate order intake from matching
+- [ ] Evaluate synchronization/latency trade-offs
 - [ ] Build a market-data feed handler
-- [ ] Study concurrency and multithreading after establishing single-threaded correctness
 - [ ] Study networking and transport considerations
 - [ ] Explore separation of order intake and matching components
-- [ ] Evaluate latency and architectural tradeoffs introduced by concurrency
+
 
 ## Tech Stack
 
