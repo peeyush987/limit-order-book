@@ -136,6 +136,9 @@ The test suite exercises order matching and order-management behavior, including
 - Concurrent order insertion
 - Concurrent cancellation
 - Concurrent reads and writes
+- CommandQueue for producer consumer
+- Multiple producers Main thread consumer
+- MPSC
 
 Tests verify exact trade details rather than only whether an order remains in the book.
 
