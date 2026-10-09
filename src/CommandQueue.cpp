@@ -1,20 +1,39 @@
 #include <CommandQueue.h>
 #include <utility>
 
-void CommandQueue::push(OrderCommand command)
+void CommandQueue::close()
 {
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        queue_.push(std::move(command));
+        closed_ = true;
     }
-    cv_.notify_one();
+    cv_.notify_all();
 }
 
 
-OrderCommand CommandQueue::waitAndPop()
+bool CommandQueue::push(OrderCommand command)
+{
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (closed_)
+        {
+            return false;
+        }
+        queue_.push(std::move(command));
+    }
+    cv_.notify_one();
+    return true;
+}
+
+
+std::optional<OrderCommand> CommandQueue::waitAndPop()
 {
     std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait(lock, [this] { return !queue_.empty(); });
+    cv_.wait(lock, [this] { return closed_ || !queue_.empty(); });
+    if(queue_.empty())
+    {
+        return std::nullopt;
+    }
     OrderCommand command = std::move(queue_.front());
     queue_.pop();
     return command;

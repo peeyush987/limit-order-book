@@ -2,6 +2,7 @@
 
 #include "Command.h"
 
+#include <optional>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
@@ -9,11 +10,14 @@
 class CommandQueue
 {
 public:
-    void push(OrderCommand command);
+    bool push(OrderCommand command);
 
-    OrderCommand waitAndPop();
+    std::optional<OrderCommand> waitAndPop();
+
+    void close();
 
 private:
+    bool closed_ = false;
     std::queue<OrderCommand> queue_;
     std::mutex mutex_;
     std::condition_variable cv_;
