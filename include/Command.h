@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Order.h"
-
+#include <future>
 #include <variant>
 
 struct AddOrderCommand
@@ -21,8 +21,15 @@ struct ModifyOrderCommand
     double newPrice;
 };
 
+struct QueryHasOrderCommand
+{
+    int orderId;
+    std::promise<bool> response;
+};
+
 using OrderCommand = std::variant<
     AddOrderCommand,
     CancelOrderCommand,
-    ModifyOrderCommand
+    ModifyOrderCommand,
+    QueryHasOrderCommand
 >;

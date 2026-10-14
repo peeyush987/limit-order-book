@@ -36,5 +36,5 @@ std::optional<OrderCommand> CommandQueue::waitAndPop()
     }
     OrderCommand command = std::move(queue_.front());
     queue_.pop();
-    return command;
+    return std::move(command);
 }

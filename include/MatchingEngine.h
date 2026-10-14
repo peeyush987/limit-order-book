@@ -3,7 +3,6 @@
 #include "CommandQueue.h"
 #include "OrderBook.h"
 
-#include <atomic>
 #include <thread>
 
 class MatchingEngine
@@ -14,7 +13,9 @@ public:
     void start();
     void stop();
 
-    void submit(OrderCommand command);
+    bool submit(OrderCommand command);
+
+    ~MatchingEngine();
 
 private:
     void run();
@@ -22,5 +23,4 @@ private:
     CommandQueue commandQueue_;
     OrderBook orderBook_;
     std::thread matchingThread_;
-    std::atomic<bool> running_;
 };

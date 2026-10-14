@@ -10,6 +10,7 @@ find_package(Threads REQUIRED)
 add_library(order_book
     src/OrderBook.cpp
     src/CommandQueue.cpp
+    src/MatchingEngine.cpp
 )
 
 target_include_directories(order_book PUBLIC
