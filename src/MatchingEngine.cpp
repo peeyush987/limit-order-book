@@ -1,4 +1,8 @@
-#include <MatchingEngine.h>
+#include "MatchingEngine.h"
+
+#include <future>
+#include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 MatchingEngine::MatchingEngine()
@@ -60,8 +64,34 @@ void MatchingEngine::run()
                 orderBook_.hasOrder(command.orderId)
                 );
             }
+            else if constexpr (
+                std::is_same_v<CommandType, QueryOrderQuantityCommand>)
+            {
+                command.response.set_value(
+                orderBook_.getOrderQuantity(command.orderId)
+                );
+            }
         }, *nextCommand);
     }
+}
+
+bool MatchingEngine::hasOrder(int orderId)
+{
+    QueryHasOrderCommand query{
+        orderId,
+        std::promise<bool>{}
+    };
+
+    std::future<bool> result = query.response.get_future();
+
+    if (!submit(std::move(query)))
+    {
+        throw std::runtime_error(
+            "Cannot query OrderBook: command queue is closed"
+        );
+    }
+
+    return result.get();
 }
 
 void MatchingEngine::stop()
@@ -72,6 +102,25 @@ void MatchingEngine::stop()
     {
         matchingThread_.join();
     }
+}
+
+int MatchingEngine::getOrderQuantity(int orderId)
+{
+    QueryOrderQuantityCommand query{
+        orderId,
+        std::promise<int>{}
+    };
+
+    std::future<int> result = query.response.get_future();
+
+    if (!submit(std::move(query)))
+    {
+        throw std::runtime_error(
+            "Cannot query OrderBook: command queue is closed"
+        );
+    }
+
+    return result.get();
 }
 
 MatchingEngine::~MatchingEngine()

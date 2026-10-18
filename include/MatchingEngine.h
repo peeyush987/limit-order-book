@@ -15,6 +15,10 @@ public:
 
     bool submit(OrderCommand command);
 
+    bool hasOrder(int orderId);
+
+    int getOrderQuantity(int orderId);
+
     ~MatchingEngine();
 
 private:

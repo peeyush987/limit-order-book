@@ -29,6 +29,14 @@ add_executable(benchmark
     benchmark/benchmark.cpp
 )
 
+add_executable(benchmark_threaded
+    benchmark/benchmark_threaded.cpp
+)
+
+target_link_libraries(benchmark_threaded PRIVATE
+    order_book
+)
+
 target_link_libraries(main PRIVATE
     order_book
 )
@@ -40,4 +48,8 @@ target_link_libraries(tests PRIVATE
 
 target_link_libraries(benchmark PRIVATE
     order_book
+)
+
+target_link_libraries(order_book PUBLIC
+    Threads::Threads
 )

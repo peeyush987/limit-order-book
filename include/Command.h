@@ -4,6 +4,7 @@
 #include <future>
 #include <variant>
 
+
 struct AddOrderCommand
 {
     Order order;
@@ -27,9 +28,16 @@ struct QueryHasOrderCommand
     std::promise<bool> response;
 };
 
+struct QueryOrderQuantityCommand
+{
+    int orderId;
+    std::promise<int> response;
+};
+
 using OrderCommand = std::variant<
     AddOrderCommand,
     CancelOrderCommand,
     ModifyOrderCommand,
-    QueryHasOrderCommand
+    QueryHasOrderCommand,
+    QueryOrderQuantityCommand
 >;
