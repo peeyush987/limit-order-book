@@ -37,6 +37,22 @@ add_executable(benchmark_mpsc
     benchmark/benchmark_mpsc.cpp
 )
 
+add_executable(benchmark_mpsc_lockfree
+    benchmark/benchmark_mpsc_lockfree.cpp
+)
+
+add_executable(benchmark_queue_comparison
+    benchmark/benchmark_queue_comparison.cpp
+)
+
+target_link_libraries(benchmark_queue_comparison PRIVATE
+    order_book
+)
+
+target_link_libraries(benchmark_mpsc_lockfree PRIVATE
+    order_book
+)
+
 target_link_libraries(benchmark_mpsc PRIVATE
     order_book
 )

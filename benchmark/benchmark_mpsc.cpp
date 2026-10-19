@@ -103,12 +103,12 @@ int main()
     {
         int quantity = quantityDist(rng);
 
-        orders.push_back({
-            i + 1,
-            true,       // Every order is a BUY
-            100.00,     // Every order uses the same price
-            quantity
-        });
+    orders.push_back({
+        i + 1,
+        true,       // Every order is a BUY
+        100.00,     // Every order uses the same price
+        quantity
+    });
     }
 
     // Warm-up runs: execute, but do not record their timings.
