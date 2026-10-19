@@ -6,6 +6,7 @@ tests
 # Build directory
 build/
 build-release/
+build-tsan/
 
 # macOS
 .DS_Store
