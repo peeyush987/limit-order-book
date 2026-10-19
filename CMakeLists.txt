@@ -33,6 +33,14 @@ add_executable(benchmark_threaded
     benchmark/benchmark_threaded.cpp
 )
 
+add_executable(benchmark_mpsc
+    benchmark/benchmark_mpsc.cpp
+)
+
+target_link_libraries(benchmark_mpsc PRIVATE
+    order_book
+)
+
 target_link_libraries(benchmark_threaded PRIVATE
     order_book
 )
