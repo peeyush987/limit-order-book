@@ -1,0 +1,8 @@
+
+.git
+build/
+build-release/
+build-tsan/
+.DS_Store
+.vscode/
+*.out
