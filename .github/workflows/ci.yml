@@ -1,0 +1,31 @@
+
+name: C++ CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S . -B build-ci -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build project
+        run: cmake --build build-ci --parallel
+
+      - name: Run tests
+        run: ./build-ci/tests
+
+      - name: Build Docker image
+        run: docker build -t lob-multithreaded .
+
+      - name: Test Docker image
+        run: docker run --rm lob-multithreaded
