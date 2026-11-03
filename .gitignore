@@ -6,6 +6,7 @@ main
 build/
 build-release/
 build-tsan/
+build-asan
 
 # macOS
 .DS_Store
