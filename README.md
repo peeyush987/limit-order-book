@@ -1,4 +1,5 @@
 # Limit Order Book & Matching Engine
+> This branch is the single-threaded optimization history. The multithreaded engine and queue experiments are on the main branch.
 
 A C++17 implementation of a single-threaded limit order book with price-time priority matching, order cancellation, modification, trade history, automated tests, repeatable benchmarking, profiling, and measurement-driven performance optimization.
 
